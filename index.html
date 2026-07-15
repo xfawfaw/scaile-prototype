@@ -403,6 +403,14 @@
     // belongs on the Langflow side only.
     LANGFLOW_API_KEY: "",
 
+    // The component ID of the Prompt Template node in your Langflow flow
+    // that has a `context` input field. Find this in Langflow's API panel
+    // (Publish → API access) — it looks like "PromptTemplate-xXxXx".
+    // This lets the frontend inject the sliding-window text into that
+    // exact field via the `tweaks` mechanism, without Langflow needing
+    // any custom JSON-parsing node. See langflow-system-prompt.md §2.
+    LANGFLOW_PROMPT_COMPONENT_ID: "PromptTemplate-xXxXx",
+
     // Sliding window: how many *pairs* of (user, assistant) turns are
     // sent as context alongside each new question. Per the PRD this is
     // assembled in the browser, never in Langflow.
@@ -497,22 +505,38 @@
   }
 
   /* ---------- sliding window builder ----------
-     Per the PRD: only the last N pairs of (user, assistant) messages
-     are bundled with the new query. Langflow stays stateless. */
+     Per the PRD: the last N pairs of (user, assistant) messages are
+     flattened into ONE plain-text string in the browser — not sent as
+     a JSON array. This is deliberate: it keeps Langflow's flow dead
+     simple (Chat Input → Prompt Template → Model → Chat Output, no
+     custom parsing component needed to unpack an array). */
   function buildSlidingWindow(){
     const maxTurns = CONFIG.SLIDING_WINDOW_PAIRS * 2;
-    return history.slice(-maxTurns).map(m => ({ role: m.role, content: m.content }));
+    const recent = history.slice(-maxTurns);
+    if(recent.length === 0) return "(belum ada riwayat percakapan)";
+    return recent
+      .map(m => (m.role === 'user' ? 'Mitra: ' : 'Asisten: ') + m.content)
+      .join('\n');
   }
 
   async function sendToLangflow(userText){
-    const context = buildSlidingWindow();
+    const contextString = buildSlidingWindow();
 
+    // input_value goes to the Chat Input node (the new question).
+    // tweaks overrides one specific field (the `context` variable) on
+    // the Prompt Template node, at the exact component ID configured
+    // above — this is how the flattened sliding-window string reaches
+    // the prompt without a dedicated Langflow node to receive it.
     const payload = {
-      session_id: sessionId,
       input_value: userText,
-      context: context, // last N pairs, assembled client-side
       output_type: "chat",
       input_type: "chat",
+      session_id: sessionId,
+      tweaks: {
+        [CONFIG.LANGFLOW_PROMPT_COMPONENT_ID]: {
+          context: contextString,
+        },
+      },
     };
 
     const headers = { "Content-Type": "application/json" };
@@ -530,10 +554,13 @@
 
     const data = await res.json();
 
-    // Langflow's response shape can vary by flow config — adjust this
-    // extractor to match your flow's output component.
+    // Langflow's default run response nests the model's text several
+    // levels deep. Confirm the exact shape for your flow using the
+    // Playground in Langflow (Publish → API access shows a live sample
+    // response) before relying on this path in production.
     const text =
       data?.outputs?.[0]?.outputs?.[0]?.results?.message?.text ??
+      data?.outputs?.[0]?.outputs?.[0]?.results?.message?.data?.text ??
       data?.output_text ??
       data?.text;
 
