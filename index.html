@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scaile — B2B Top-Up Automation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     DESIGN TOKENS
+     Palette: dark navy + white (per brief), with a single "currency
+     gold" accent — a nod to in-game currency (diamonds/UC/Robux)
+     that this product tops up. Typography follows the brief's own
+     hierarchy: Geist Mono carries the interface (machine voice —
+     fits an automation product built around zero hallucination),
+     serif carries the one human/warm line (the greeting), and
+     JetBrains Mono is reserved for data: prices, timestamps, and
+     the "grounded in catalog" badge on every AI answer.
+     ============================================================ */
+  :root{
+    --navy-950:#0A1220;
+    --navy-900:#101D33;
+    --navy-850:#132540;
+    --navy-800:#182D4C;
+    --navy-700:#223a5e;
+    --ink:#EFF3F9;
+    --muted:#8FA0BD;
+    --muted-dim:#5E6E8C;
+    --gold:#E8B14B;
+    --gold-dim:#B8862F;
+    --good:#5FCB8F;
+
+    --font-sans: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    --font-serif: serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    --radius: 14px;
+    --shadow-lg: 0 24px 60px -18px rgba(0,0,0,0.55);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:var(--font-sans);
+    background:
+      radial-gradient(circle at 15% 8%, #14243c 0%, transparent 45%),
+      radial-gradient(circle at 85% 92%, #0f2540 0%, transparent 40%),
+      var(--navy-950);
+    color:var(--ink);
+    min-height:100vh;
+  }
+
+  /* ---------- backdrop page (stand-in for the client's real site) ---------- */
+  .page{
+    max-width:760px;
+    margin:0 auto;
+    padding:96px 28px 200px;
+  }
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:12px;
+    letter-spacing:0.14em;
+    color:var(--gold);
+    text-transform:uppercase;
+    margin-bottom:18px;
+  }
+  h1{
+    font-family:var(--font-serif);
+    font-weight:400;
+    font-size:clamp(32px,5vw,50px);
+    line-height:1.15;
+    margin:0 0 20px;
+    color:var(--ink);
+  }
+  .page p{
+    color:var(--muted);
+    font-size:15px;
+    line-height:1.7;
+    max-width:56ch;
+  }
+  .catalog-strip{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:36px;
+  }
+  .catalog-strip span{
+    font-family:var(--font-mono);
+    font-size:12px;
+    border:1px solid var(--navy-700);
+    color:var(--muted);
+    padding:7px 12px;
+    border-radius:999px;
+  }
+
+  /* ============================================================
+     WIDGET — floating launcher
+     ============================================================ */
+  #scaile-launcher{
+    position:fixed;
+    right:24px;
+    bottom:24px;
+    width:58px;
+    height:58px;
+    border-radius:50%;
+    background:var(--gold);
+    border:none;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 12px 28px -8px rgba(232,177,75,0.55);
+    z-index:9999;
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  #scaile-launcher:hover{ transform:translateY(-2px); box-shadow:0 16px 34px -8px rgba(232,177,75,0.65); }
+  #scaile-launcher:focus-visible{ outline:3px solid var(--ink); outline-offset:3px; }
+  #scaile-launcher svg{ width:24px; height:24px; }
+  #scaile-launcher .dot{
+    position:absolute;
+    top:2px; right:2px;
+    width:12px; height:12px;
+    border-radius:50%;
+    background:var(--good);
+    border:2px solid var(--navy-950);
+  }
+
+  /* ---------- panel ---------- */
+  #scaile-panel{
+    position:fixed;
+    right:24px;
+    bottom:94px;
+    width:376px;
+    max-width:calc(100vw - 32px);
+    height:560px;
+    max-height:calc(100vh - 140px);
+    background:var(--navy-900);
+    border:1px solid var(--navy-700);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow-lg);
+    display:none;
+    flex-direction:column;
+    overflow:hidden;
+    z-index:9999;
+  }
+  #scaile-panel.open{ display:flex; }
+
+  .sc-header{
+    background:var(--navy-950);
+    border-bottom:1px solid var(--navy-700);
+    padding:16px 18px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .sc-header .avatar{
+    width:34px;height:34px;border-radius:9px;
+    background:linear-gradient(145deg, var(--gold), var(--gold-dim));
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono); font-weight:700; font-size:13px; color:var(--navy-950);
+    flex-shrink:0;
+  }
+  .sc-header .titles{ flex:1; min-width:0; }
+  .sc-header .name{
+    font-family:var(--font-serif);
+    font-size:16px;
+    color:var(--ink);
+    display:flex; align-items:center; gap:7px;
+  }
+  .sc-header .name .status-dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--good);
+    box-shadow:0 0 0 0 rgba(95,203,143,0.6);
+    animation:pulse 2s infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(95,203,143,0.5);}
+    70%{box-shadow:0 0 0 6px rgba(95,203,143,0);}
+    100%{box-shadow:0 0 0 0 rgba(95,203,143,0);}
+  }
+  .sc-header .subtitle{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    color:var(--muted-dim);
+    letter-spacing:.03em;
+    margin-top:1px;
+  }
+  .sc-header .close-btn{
+    background:none;border:none;color:var(--muted);
+    cursor:pointer; padding:6px; border-radius:6px; line-height:0;
+  }
+  .sc-header .close-btn:hover{ color:var(--ink); background:var(--navy-800); }
+
+  .sc-body{
+    flex:1;
+    overflow-y:auto;
+    padding:18px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .sc-body::-webkit-scrollbar{ width:6px; }
+  .sc-body::-webkit-scrollbar-thumb{ background:var(--navy-700); border-radius:6px; }
+
+  .msg{
+    max-width:84%;
+    font-size:13.5px;
+    line-height:1.55;
+    padding:10px 13px;
+    border-radius:11px;
+    white-space:pre-wrap;
+    word-wrap:break-word;
+  }
+  .msg.bot{
+    align-self:flex-start;
+    background:var(--navy-800);
+    border:1px solid var(--navy-700);
+    border-bottom-left-radius:3px;
+    color:var(--ink);
+  }
+  .msg.user{
+    align-self:flex-end;
+    background:var(--gold);
+    color:var(--navy-950);
+    font-weight:500;
+    border-bottom-right-radius:3px;
+  }
+  .msg.system-note{
+    align-self:center;
+    background:transparent;
+    color:var(--muted-dim);
+    font-family:var(--font-mono);
+    font-size:11px;
+    text-align:center;
+    max-width:100%;
+  }
+
+  /* the signature element: a grounding badge on every AI answer,
+     making the "zero hallucination" architecture visible to the user */
+  .grounded-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    margin-top:8px;
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:.02em;
+    color:var(--gold);
+    opacity:.9;
+  }
+  .grounded-badge svg{ width:11px; height:11px; }
+
+  .typing-row{ align-self:flex-start; display:flex; gap:4px; padding:12px 13px; }
+  .typing-row .cursor{
+    width:6px; height:14px;
+    background:var(--gold);
+    animation:blink 1s steps(1) infinite;
+  }
+  .typing-row .cursor:nth-child(2){ animation-delay:.15s; }
+  .typing-row .cursor:nth-child(3){ animation-delay:.3s; }
+  @keyframes blink{ 0%,50%{opacity:1;} 51%,100%{opacity:.15;} }
+
+  .sc-prompts{
+    padding:0 18px 14px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .sc-prompts button{
+    font-family:var(--font-sans);
+    font-size:12px;
+    background:var(--navy-800);
+    border:1px solid var(--navy-700);
+    color:var(--ink);
+    padding:8px 11px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .sc-prompts button:hover{ background:var(--navy-700); border-color:var(--gold-dim); }
+
+  .sc-input-row{
+    border-top:1px solid var(--navy-700);
+    background:var(--navy-950);
+    padding:12px;
+    display:flex;
+    gap:8px;
+  }
+  .sc-input-row textarea{
+    flex:1;
+    resize:none;
+    background:var(--navy-800);
+    border:1px solid var(--navy-700);
+    color:var(--ink);
+    font-family:var(--font-sans);
+    font-size:13px;
+    padding:10px 12px;
+    border-radius:9px;
+    max-height:80px;
+  }
+  .sc-input-row textarea:focus{ outline:none; border-color:var(--gold-dim); }
+  .sc-input-row button{
+    background:var(--gold);
+    border:none;
+    color:var(--navy-950);
+    font-family:var(--font-sans);
+    font-weight:600;
+    font-size:12.5px;
+    padding:0 16px;
+    border-radius:9px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .sc-input-row button:disabled{ opacity:.5; cursor:not-allowed; }
+
+  @media (prefers-reduced-motion: reduce){
+    .typing-row .cursor, .sc-header .name .status-dot{ animation:none; }
+  }
+
+  @media (max-width:480px){
+    #scaile-panel{
+      right:12px; left:12px; bottom:84px;
+      width:auto; height:calc(100vh - 120px);
+    }
+    #scaile-launcher{ right:16px; bottom:16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="eyebrow">Scaile · B2B Operations Layer</div>
+  <h1>Top-up otomatis untuk mitra, tanpa antre di Customer Service.</h1>
+  <p>
+    Widget di kanan bawah ini terhubung ke katalog harga Mobile Legends, PUBG Mobile,
+    dan Roblox. Setiap jawaban dikutip langsung dari katalog statis — bukan tebakan model —
+    jadi mitra B2B mendapat kepastian harga dan SOP tanpa menunggu staf.
+  </p>
+  <div class="catalog-strip">
+    <span>Mobile Legends · Diamonds</span>
+    <span>PUBG Mobile · UC</span>
+    <span>Roblox · Robux</span>
+    <span>SOP Transaksi</span>
+  </div>
+</div>
+
+<!-- ================= WIDGET MARKUP ================= -->
+<button id="scaile-launcher" aria-label="Buka chat Scaile Assistant" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 4h16v12H8l-4 4V4z" stroke="#0A1220" stroke-width="1.8" stroke-linejoin="round"/>
+  </svg>
+  <span class="dot"></span>
+</button>
+
+<div id="scaile-panel" role="dialog" aria-label="Scaile Assistant chat">
+  <div class="sc-header">
+    <div class="avatar">SC</div>
+    <div class="titles">
+      <div class="name"><span class="status-dot"></span>Scaile Assistant</div>
+      <div class="subtitle">terhubung ke katalog · temp 0.0</div>
+    </div>
+    <button class="close-btn" id="sc-close" aria-label="Tutup chat">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+
+  <div class="sc-body" id="sc-body">
+    <div class="msg system-note">Sesi dimulai · balasan bersumber dari katalog Scaile</div>
+    <div class="msg bot">
+      Halo, saya Scaile Assistant. Tanyakan harga, ketersediaan, atau SOP top-up — jawaban saya selalu mengacu ke katalog resmi.
+    </div>
+  </div>
+
+  <div class="sc-prompts" id="sc-prompts">
+    <button data-prompt="Berapa harga top-up 1000 Diamonds Mobile Legends?">Cek Harga MLBB</button>
+    <button data-prompt="Bagaimana SOP top-up untuk mitra B2B?">Bagaimana SOP Top-up?</button>
+    <button data-prompt="Apakah Robux Roblox tersedia untuk semua nominal?">Cek Ketersediaan Roblox</button>
+  </div>
+
+  <div class="sc-input-row">
+    <textarea id="sc-input" rows="1" placeholder="Ketik pertanyaan…" aria-label="Ketik pesan"></textarea>
+    <button id="sc-send">Kirim</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+     CONFIG — set these before deploying to GitHub Pages
+     ============================================================ */
+  const CONFIG = {
+    // Replace with your Langflow webhook endpoint (Langflow Cloud free
+    // tier or a HuggingFace Space running Langflow).
+    LANGFLOW_WEBHOOK_URL: "https://YOUR-LANGFLOW-HOST/api/v1/run/YOUR_FLOW_ID?stream=false",
+
+    // If your Langflow webhook requires an API key header, put it here.
+    // Never put a Gemini key directly in this frontend file — the key
+    // belongs on the Langflow side only.
+    LANGFLOW_API_KEY: "",
+
+    // Sliding window: how many *pairs* of (user, assistant) turns are
+    // sent as context alongside each new question. Per the PRD this is
+    // assembled in the browser, never in Langflow.
+    SLIDING_WINDOW_PAIRS: 4,
+
+    // Persist the conversation across page reloads. Set to false to
+    // keep memory purely in RAM (cleared on refresh), matching the
+    // PRD's "volatile by default" note.
+    PERSIST_TO_LOCAL_STORAGE: true,
+    STORAGE_KEY: "scaile_chat_history_v1",
+
+    STATIC_FALLBACK_MESSAGE:
+      "Sistem sedang memproses banyak permintaan, mohon tunggu beberapa saat dan coba lagi.",
+  };
+
+  /* ============================================================
+     STATE
+     ============================================================ */
+  let history = []; // [{role:'user'|'assistant', content, ts}]
+  let sessionId = null;
+  let sending = false;
+
+  const el = {
+    launcher: document.getElementById('scaile-launcher'),
+    panel: document.getElementById('scaile-panel'),
+    close: document.getElementById('sc-close'),
+    body: document.getElementById('sc-body'),
+    prompts: document.getElementById('sc-prompts'),
+    input: document.getElementById('sc-input'),
+    send: document.getElementById('sc-send'),
+  };
+
+  function loadPersisted(){
+    if(!CONFIG.PERSIST_TO_LOCAL_STORAGE) return;
+    try{
+      const raw = localStorage.getItem(CONFIG.STORAGE_KEY);
+      if(raw){
+        const parsed = JSON.parse(raw);
+        history = parsed.history || [];
+        sessionId = parsed.sessionId || null;
+        history.forEach(m => renderMessage(m.role, m.content, false));
+      }
+    }catch(e){ /* corrupted storage, ignore and start fresh */ }
+  }
+
+  function persist(){
+    if(!CONFIG.PERSIST_TO_LOCAL_STORAGE) return;
+    try{
+      localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify({ sessionId, history }));
+    }catch(e){ /* storage full or unavailable — fail silently, memory stays in RAM */ }
+  }
+
+  function ensureSession(){
+    if(!sessionId){
+      sessionId = 'sess_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+    }
+  }
+
+  function scrollToBottom(){
+    el.body.scrollTop = el.body.scrollHeight;
+  }
+
+  function renderMessage(role, content, animate){
+    const div = document.createElement('div');
+    div.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+    div.textContent = content;
+
+    if(role === 'assistant'){
+      const badge = document.createElement('div');
+      badge.className = 'grounded-badge';
+      badge.innerHTML = '<svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Sumber: Katalog';
+      div.appendChild(badge);
+    }
+
+    el.body.appendChild(div);
+    if(animate !== false) scrollToBottom();
+    return div;
+  }
+
+  function showTyping(){
+    const row = document.createElement('div');
+    row.className = 'typing-row';
+    row.id = 'sc-typing';
+    row.innerHTML = '<span class="cursor"></span><span class="cursor"></span><span class="cursor"></span>';
+    el.body.appendChild(row);
+    scrollToBottom();
+  }
+
+  function hideTyping(){
+    const t = document.getElementById('sc-typing');
+    if(t) t.remove();
+  }
+
+  /* ---------- sliding window builder ----------
+     Per the PRD: only the last N pairs of (user, assistant) messages
+     are bundled with the new query. Langflow stays stateless. */
+  function buildSlidingWindow(){
+    const maxTurns = CONFIG.SLIDING_WINDOW_PAIRS * 2;
+    return history.slice(-maxTurns).map(m => ({ role: m.role, content: m.content }));
+  }
+
+  async function sendToLangflow(userText){
+    const context = buildSlidingWindow();
+
+    const payload = {
+      session_id: sessionId,
+      input_value: userText,
+      context: context, // last N pairs, assembled client-side
+      output_type: "chat",
+      input_type: "chat",
+    };
+
+    const headers = { "Content-Type": "application/json" };
+    if(CONFIG.LANGFLOW_API_KEY){ headers["x-api-key"] = CONFIG.LANGFLOW_API_KEY; }
+
+    const res = await fetch(CONFIG.LANGFLOW_WEBHOOK_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if(!res.ok){
+      throw new Error("langflow_http_" + res.status);
+    }
+
+    const data = await res.json();
+
+    // Langflow's response shape can vary by flow config — adjust this
+    // extractor to match your flow's output component.
+    const text =
+      data?.outputs?.[0]?.outputs?.[0]?.results?.message?.text ??
+      data?.output_text ??
+      data?.text;
+
+    if(!text){ throw new Error("langflow_empty_response"); }
+    return text;
+  }
+
+  async function handleSend(rawText){
+    const text = (rawText ?? el.input.value).trim();
+    if(!text || sending) return;
+
+    ensureSession();
+    sending = true;
+    el.send.disabled = true;
+    el.prompts.style.display = 'none';
+
+    renderMessage('user', text);
+    history.push({ role: 'user', content: text, ts: Date.now() });
+    persist();
+
+    el.input.value = '';
+    showTyping();
+
+    try{
+      const reply = await sendToLangflow(text);
+      hideTyping();
+      renderMessage('assistant', reply);
+      history.push({ role: 'assistant', content: reply, ts: Date.now() });
+      persist();
+    }catch(err){
+      hideTyping();
+      // Rate-limit / timeout / network fallback — a static message,
+      // never a fabricated answer.
+      renderMessage('assistant', CONFIG.STATIC_FALLBACK_MESSAGE);
+    }finally{
+      sending = false;
+      el.send.disabled = false;
+      el.input.focus();
+    }
+  }
+
+  /* ---------- wiring ---------- */
+  el.launcher.addEventListener('click', () => {
+    const isOpen = el.panel.classList.toggle('open');
+    el.launcher.setAttribute('aria-expanded', String(isOpen));
+    if(isOpen){ el.input.focus(); scrollToBottom(); }
+  });
+
+  el.close.addEventListener('click', () => {
+    el.panel.classList.remove('open');
+    el.launcher.setAttribute('aria-expanded', 'false');
+  });
+
+  el.send.addEventListener('click', () => handleSend());
+
+  el.input.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      handleSend();
+    }
+  });
+
+  el.prompts.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-prompt]');
+    if(btn) handleSend(btn.getAttribute('data-prompt'));
+  });
+
+  loadPersisted();
+  if(history.length > 0){ el.prompts.style.display = 'none'; }
+})();
+</script>
+
+</body>
+</html>
