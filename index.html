@@ -335,17 +335,27 @@
     max-height:80px;
   }
   .sc-input-row textarea:focus{ outline:none; border-color:var(--gold-dim); }
-  .sc-input-row button{
-    background:var(--gold);
-    border:none;
-    color:var(--navy-950);
-    font-family:var(--font-sans);
-    font-weight:600;
-    font-size:12.5px;
-    padding:0 16px;
-    border-radius:9px;
-    cursor:pointer;
-    flex-shrink:0;
+  .sc-input-row button {
+    background: var(--gold);
+    border: none;
+    color: var(--navy-950);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 12.5px;
+    padding: 0 16px;
+    border-radius: 9px;
+    cursor: pointer;
+    flex-shrink: 0;
+    /* Tambahkan baris ini */
+    transition: transform 0.1s ease, filter 0.15s ease;
+  }
+  
+  /* Tambahkan blok hover dan active ini */
+  .sc-input-row button:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
+  .sc-input-row button:active:not(:disabled) {
+    transform: scale(0.96);
   }
   .sc-input-row button:disabled{ opacity:.5; cursor:not-allowed; }
 
