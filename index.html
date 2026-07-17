@@ -40,6 +40,28 @@
     --shadow-lg: 0 24px 60px -18px rgba(0,0,0,0.55);
   }
 
+  @keyframes slideUpFade {
+    from { 
+      opacity: 0; 
+      transform: translateY(20px) scale(0.98); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0) scale(1); 
+    }
+  }
+
+  @keyframes messagePop {
+    from { 
+      opacity: 0; 
+      transform: translateY(10px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+
   *{box-sizing:border-box;}
   html,body{height:100%;}
   body{
@@ -146,7 +168,10 @@
     overflow:hidden;
     z-index:9999;
   }
-  #scaile-panel.open{ display:flex; }
+  #scaile-panel.open { 
+    display: flex; 
+    animation: slideUpFade 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
 
   .sc-header{
     background:var(--navy-950);
@@ -213,6 +238,8 @@
     border-radius:11px;
     white-space:pre-wrap;
     word-wrap:break-word;
+    opacity: 0;
+    animation: messagePop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
   .msg.bot{
     align-self:flex-start;
@@ -278,9 +305,15 @@
     padding:8px 11px;
     border-radius:999px;
     cursor:pointer;
-    transition:background .15s ease, border-color .15s ease;
+    transition: transform 0.2s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease;
   }
-  .sc-prompts button:hover{ background:var(--navy-700); border-color:var(--gold-dim); }
+  .sc-prompts button:hover { 
+    background: var(--navy-700); 
+    border-color: var(--gold-dim); 
+    /* Tambahkan dua baris ini */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
 
   .sc-input-row{
     border-top:1px solid var(--navy-700);
@@ -370,14 +403,15 @@
   <div class="sc-body" id="sc-body">
     <div class="msg system-note">Sesi dimulai · balasan bersumber dari katalog Scaile</div>
     <div class="msg bot">
-      Halo, saya Scaile Assistant. Tanyakan harga, ketersediaan, atau SOP top-up — jawaban saya selalu mengacu ke katalog resmi.
+      Halo, saya Scaile Assistant. Anda dapat menanyakan harga, ketersediaan, atau SOP top-up. Semua jawaban saya selalu mengacu pada katalog resmi Scaile.
     </div>
   </div>
 
   <div class="sc-prompts" id="sc-prompts">
-    <button data-prompt="Berapa harga top-up 1000 Diamonds Mobile Legends?">Cek Harga MLBB</button>
+    <button data-prompt="Berapa harga top-up Weekly Diamond Pass (WDP) Mobile Legends?">Cek Harga WDP MLBB</button>
     <button data-prompt="Bagaimana SOP top-up untuk mitra B2B?">Bagaimana SOP Top-up?</button>
     <button data-prompt="Apakah Robux Roblox tersedia untuk semua nominal?">Cek Ketersediaan Roblox</button>
+    <button data-prompt="Berapa harga Royale Pass Elite Plus PUBGM?">Cek Harga Royale Pass Elite Plus PUBGM</button>
   </div>
 
   <div class="sc-input-row">
@@ -394,36 +428,11 @@
      CONFIG — set these before deploying to GitHub Pages
      ============================================================ */
   const CONFIG = {
-    // Replace with your Langflow webhook endpoint (Langflow Cloud free
-    // tier or a HuggingFace Space running Langflow).
-    LANGFLOW_WEBHOOK_URL: "https://YOUR-LANGFLOW-HOST/api/v1/run/YOUR_FLOW_ID?stream=false",
-
-    // If your Langflow webhook requires an API key header, put it here.
-    // Never put a Gemini key directly in this frontend file — the key
-    // belongs on the Langflow side only.
-    LANGFLOW_API_KEY: "",
-
-    // The component ID of the Prompt Template node in your Langflow flow
-    // that has a `context` input field. Find this in Langflow's API panel
-    // (Publish → API access) — it looks like "PromptTemplate-xXxXx".
-    // This lets the frontend inject the sliding-window text into that
-    // exact field via the `tweaks` mechanism, without Langflow needing
-    // any custom JSON-parsing node. See langflow-system-prompt.md §2.
-    LANGFLOW_PROMPT_COMPONENT_ID: "PromptTemplate-xXxXx",
-
-    // Sliding window: how many *pairs* of (user, assistant) turns are
-    // sent as context alongside each new question. Per the PRD this is
-    // assembled in the browser, never in Langflow.
+    GAS_WEBHOOK_URL: "https://script.google.com/macros/s/AKfycby5Zo6y7o3Rlt9RDr2R2VFiWgI8mZmDg1QTHZuSQjItb7q4QKIeTrHx3gru3iYw-LjG/exec",
     SLIDING_WINDOW_PAIRS: 4,
-
-    // Persist the conversation across page reloads. Set to false to
-    // keep memory purely in RAM (cleared on refresh), matching the
-    // PRD's "volatile by default" note.
-    PERSIST_TO_LOCAL_STORAGE: true,
+    PERSIST_TO_LOCAL_STORAGE: false,
     STORAGE_KEY: "scaile_chat_history_v1",
-
-    STATIC_FALLBACK_MESSAGE:
-      "Sistem sedang memproses banyak permintaan, mohon tunggu beberapa saat dan coba lagi.",
+    STATIC_FALLBACK_MESSAGE: "Sistem sedang memproses banyak permintaan, mohon tunggu beberapa saat dan coba lagi.",
   };
 
   /* ============================================================
@@ -519,53 +528,32 @@
       .join('\n');
   }
 
-  async function sendToLangflow(userText){
+  async function sendToGAS(userText){
     const contextString = buildSlidingWindow();
 
-    // input_value goes to the Chat Input node (the new question).
-    // tweaks overrides one specific field (the `context` variable) on
-    // the Prompt Template node, at the exact component ID configured
-    // above — this is how the flattened sliding-window string reaches
-    // the prompt without a dedicated Langflow node to receive it.
     const payload = {
-      input_value: userText,
-      output_type: "chat",
-      input_type: "chat",
-      session_id: sessionId,
-      tweaks: {
-        [CONFIG.LANGFLOW_PROMPT_COMPONENT_ID]: {
-          context: contextString,
-        },
-      },
+      query: userText,
+      context: contextString
     };
 
-    const headers = { "Content-Type": "application/json" };
-    if(CONFIG.LANGFLOW_API_KEY){ headers["x-api-key"] = CONFIG.LANGFLOW_API_KEY; }
-
-    const res = await fetch(CONFIG.LANGFLOW_WEBHOOK_URL, {
+    // Menggunakan text/plain untuk menghindari issue CORS preflight dari GAS
+    const res = await fetch(CONFIG.GAS_WEBHOOK_URL, {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify(payload),
     });
 
     if(!res.ok){
-      throw new Error("langflow_http_" + res.status);
+      throw new Error("gas_http_" + res.status);
     }
 
     const data = await res.json();
-
-    // Langflow's default run response nests the model's text several
-    // levels deep. Confirm the exact shape for your flow using the
-    // Playground in Langflow (Publish → API access shows a live sample
-    // response) before relying on this path in production.
-    const text =
-      data?.outputs?.[0]?.outputs?.[0]?.results?.message?.text ??
-      data?.outputs?.[0]?.outputs?.[0]?.results?.message?.data?.text ??
-      data?.output_text ??
-      data?.text;
-
-    if(!text){ throw new Error("langflow_empty_response"); }
-    return text;
+    
+    if(data.error || !data.reply){ 
+      throw new Error("gas_processing_error"); 
+    }
+    
+    return data.reply;
   }
 
   async function handleSend(rawText){
@@ -575,7 +563,6 @@
     ensureSession();
     sending = true;
     el.send.disabled = true;
-    el.prompts.style.display = 'none';
 
     renderMessage('user', text);
     history.push({ role: 'user', content: text, ts: Date.now() });
@@ -585,7 +572,7 @@
     showTyping();
 
     try{
-      const reply = await sendToLangflow(text);
+      const reply = await sendToGAS(text)
       hideTyping();
       renderMessage('assistant', reply);
       history.push({ role: 'assistant', content: reply, ts: Date.now() });
@@ -629,7 +616,6 @@
   });
 
   loadPersisted();
-  if(history.length > 0){ el.prompts.style.display = 'none'; }
 })();
 </script>
 
