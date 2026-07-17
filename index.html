@@ -568,7 +568,15 @@
       throw new Error("gas_processing_error"); 
     }
     
-    return data.reply;
+    let cleanText = data.reply;
+    
+    // Ubah **teks** menjadi elemen HTML bold tebal
+    cleanText = cleanText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Ubah awalan * menjadi simbol bullet (•) yang rapi
+    cleanText = cleanText.replace(/^\s*\*\s+/gm, '• ');
+    
+    return cleanText;
   }
 
   async function handleSend(rawText){
