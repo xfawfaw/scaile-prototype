@@ -420,7 +420,6 @@
   <div class="sc-prompts" id="sc-prompts">
     <button data-prompt="Berapa harga top-up Weekly Diamond Pass (WDP) Mobile Legends?">Cek Harga WDP MLBB</button>
     <button data-prompt="Bagaimana SOP top-up untuk mitra B2B?">Bagaimana SOP Top-up?</button>
-    <button data-prompt="Apakah Robux Roblox tersedia untuk semua nominal?">Cek Ketersediaan Roblox</button>
     <button data-prompt="Berapa harga Royale Pass Elite Plus PUBGM?">Cek Harga Royale Pass Elite Plus PUBGM</button>
   </div>
 
@@ -444,6 +443,12 @@
     STORAGE_KEY: "scaile_chat_history_v1",
     STATIC_FALLBACK_MESSAGE: "Sistem sedang memproses banyak permintaan, mohon tunggu beberapa saat dan coba lagi.",
   };
+
+  function parseMarkdown(text) {
+  let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/^\* /gm, '• ');
+  return html;
+}
 
   /* ============================================================
      STATE
