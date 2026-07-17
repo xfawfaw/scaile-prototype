@@ -511,7 +511,6 @@
     <div class="avatar">SC</div>
     <div class="titles">
       <div class="name"><span class="status-dot"></span>Scaile Assistant</div>
-      <div class="subtitle">terhubung ke katalog · temp 0.0</div>
     </div>
     <button class="close-btn" id="sc-close" aria-label="Tutup chat">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -734,7 +733,8 @@
 
     const payload = {
       query: userText,
-      context: contextString
+      context: contextString,
+      temperature: 0.1
     };
 
     // Menggunakan text/plain untuk menghindari issue CORS preflight dari GAS
