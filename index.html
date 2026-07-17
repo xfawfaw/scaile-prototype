@@ -359,6 +359,54 @@
   }
   .sc-input-row button:disabled{ opacity:.5; cursor:not-allowed; }
 
+  /* Chatbot output markdown/list rendering styles */
+  .msg-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+  .bot-paragraph {
+    margin: 0;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  .bot-heading {
+    margin: 12px 0 6px 0;
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 1.05em;
+  }
+  .bot-list {
+    margin: 6px 0;
+    padding-left: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .bot-list-item {
+    position: relative;
+    padding-left: 20px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  .bot-list-item::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 9px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--gold);
+    box-shadow: 0 0 6px rgba(232, 177, 75, 0.6);
+  }
+  .msg.bot strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
   @media (prefers-reduced-motion: reduce){
     .typing-row .cursor, .sc-header .name .status-dot{ animation:none; }
   }
@@ -413,7 +461,9 @@
   <div class="sc-body" id="sc-body">
     <div class="msg system-note">Sesi dimulai · balasan bersumber dari katalog Scaile</div>
     <div class="msg bot">
-      Halo, saya Scaile Assistant. Anda dapat menanyakan harga, ketersediaan, atau SOP top-up. Semua jawaban saya selalu mengacu pada katalog resmi Scaile.
+      <div class="msg-content">
+        <p class="bot-paragraph">Halo, saya Scaile Assistant. Anda dapat menanyakan harga, ketersediaan, atau SOP top-up. Semua jawaban saya selalu mengacu pada katalog resmi Scaile.</p>
+      </div>
     </div>
   </div>
 
@@ -444,11 +494,57 @@
     STATIC_FALLBACK_MESSAGE: "Sistem sedang memproses banyak permintaan, mohon tunggu beberapa saat dan coba lagi.",
   };
 
-  function parseMarkdown(text) {
-  let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/^\* /gm, '• ');
-  return html;
-}
+  function formatBotResponse(text) {
+    if (!text) return "";
+    
+    // Normalize newlines and replace raw markdown **bold** with <strong>bold</strong>
+    let parsed = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    const lines = parsed.split('\n');
+    let html = '';
+    let inList = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) {
+        if (inList) {
+          html += '</ul>';
+          inList = false;
+        }
+        continue;
+      }
+
+      // Check for list item starting with *, -, or •
+      const listMatch = line.match(/^[\*\-\u2022•]\s*(.*)/);
+      if (listMatch) {
+        if (!inList) {
+          html += '<ul class="bot-list">';
+          inList = true;
+        }
+        html += `<li class="bot-list-item">${listMatch[1]}</li>`;
+      } else {
+        if (inList) {
+          html += '</ul>';
+          inList = false;
+        }
+        // Check if heading
+        const headingMatch = line.match(/^(#{1,6})\s*(.*)/);
+        if (headingMatch) {
+          const level = headingMatch[1].length;
+          html += `<h${level} class="bot-heading">${headingMatch[2]}</h${level}>`;
+        } else {
+          // Regular paragraph
+          html += `<p class="bot-paragraph">${line}</p>`;
+        }
+      }
+    }
+
+    if (inList) {
+      html += '</ul>';
+    }
+
+    return html;
+  }
 
   /* ============================================================
      STATE
@@ -500,7 +596,15 @@
   function renderMessage(role, content, animate){
     const div = document.createElement('div');
     div.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
-    div.textContent = content;
+    
+    if (role === 'user') {
+      div.textContent = content;
+    } else {
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'msg-content';
+      contentDiv.innerHTML = formatBotResponse(content);
+      div.appendChild(contentDiv);
+    }
 
     if(role === 'assistant'){
       const badge = document.createElement('div');
