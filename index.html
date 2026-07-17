@@ -407,6 +407,66 @@
     font-weight: 600;
   }
 
+  /* Prompts Dropdown Styles */
+  .sc-prompts-dropdown-container {
+    padding: 0 18px 14px;
+    display: none;
+    animation: slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  .sc-prompts-select-wrapper {
+    position: relative;
+    width: 100%;
+  }
+  
+  .sc-prompts-select-wrapper::after {
+    content: "";
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid var(--gold);
+    pointer-events: none;
+    transition: transform 0.2s ease;
+  }
+  
+  #sc-prompts-select {
+    width: 100%;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    background: var(--navy-800);
+    border: 1px solid var(--navy-700);
+    color: var(--ink);
+    padding: 10px 36px 10px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  }
+  
+  #sc-prompts-select:hover {
+    border-color: var(--gold-dim);
+    background-color: var(--navy-850);
+  }
+  
+  #sc-prompts-select:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(232, 177, 75, 0.25);
+  }
+  
+  #sc-prompts-select option {
+    background: var(--navy-950);
+    color: var(--ink);
+    padding: 8px;
+  }
+
   @media (prefers-reduced-motion: reduce){
     .typing-row .cursor, .sc-header .name .status-dot{ animation:none; }
   }
@@ -471,6 +531,17 @@
     <button data-prompt="Berapa harga top-up Weekly Diamond Pass (WDP) Mobile Legends?">Cek Harga WDP MLBB</button>
     <button data-prompt="Bagaimana SOP top-up untuk mitra B2B?">Bagaimana SOP Top-up?</button>
     <button data-prompt="Berapa harga Royale Pass Elite Plus PUBGM?">Cek Harga Royale Pass Elite Plus PUBGM</button>
+  </div>
+
+  <div class="sc-prompts-dropdown-container" id="sc-prompts-dropdown-container">
+    <div class="sc-prompts-select-wrapper">
+      <select id="sc-prompts-select" aria-label="Pilih Pertanyaan Populer">
+        <option value="" disabled selected>Pilih Pertanyaan Populer...</option>
+        <option value="Berapa harga top-up Weekly Diamond Pass (WDP) Mobile Legends?">Cek Harga WDP MLBB</option>
+        <option value="Bagaimana SOP top-up untuk mitra B2B?">Bagaimana SOP Top-up?</option>
+        <option value="Berapa harga Royale Pass Elite Plus PUBGM?">Cek Harga Royale Pass Elite Plus PUBGM</option>
+      </select>
+    </div>
   </div>
 
   <div class="sc-input-row">
@@ -572,6 +643,9 @@
         history = parsed.history || [];
         sessionId = parsed.sessionId || null;
         history.forEach(m => renderMessage(m.role, m.content, false));
+        if(history.length > 0){
+          switchToDropdown();
+        }
       }
     }catch(e){ /* corrupted storage, ignore and start fresh */ }
   }
@@ -586,6 +660,14 @@
   function ensureSession(){
     if(!sessionId){
       sessionId = 'sess_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+    }
+  }
+
+  function switchToDropdown(){
+    el.prompts.style.display = 'none';
+    const dropdownContainer = document.getElementById('sc-prompts-dropdown-container');
+    if (dropdownContainer) {
+      dropdownContainer.style.display = 'block';
     }
   }
 
@@ -687,6 +769,8 @@
     const text = (rawText ?? el.input.value).trim();
     if(!text || sending) return;
 
+    switchToDropdown();
+
     ensureSession();
     sending = true;
     el.send.disabled = true;
@@ -741,6 +825,17 @@
     const btn = e.target.closest('button[data-prompt]');
     if(btn) handleSend(btn.getAttribute('data-prompt'));
   });
+
+  const selectEl = document.getElementById('sc-prompts-select');
+  if (selectEl) {
+    selectEl.addEventListener('change', (e) => {
+      const selectedPrompt = e.target.value;
+      if (selectedPrompt) {
+        handleSend(selectedPrompt);
+        e.target.value = ""; // Reset option back to disabled placeholder
+      }
+    });
+  }
 
   loadPersisted();
 })();
